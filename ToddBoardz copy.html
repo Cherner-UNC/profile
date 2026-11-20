@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Jamboard — Interactive Digital Whiteboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter, JetBrains Mono, Kalam, Playfair Display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=JetBrains+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Kalam:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f1f3f4;
+      touch-action: none;
+    }
+
+    /* Custom Scrollbar for popovers if needed */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #dadce0;
+      border-radius: 9999px;
+    }
+
+    /* Jamboard Sticky Note realistic shadow & styling */
+    .sticky-note-card {
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
+      transition: box-shadow 0.15s ease;
+    }
+    .sticky-note-card:hover {
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18), 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Selection bounding box & handles */
+    .selection-box {
+      border: 1.5px solid #1a73e8;
+      pointer-events: none;
+    }
+    .resize-handle {
+      width: 11px;
+      height: 11px;
+      background: #ffffff;
+      border: 2px solid #1a73e8;
+      border-radius: 50%;
+      position: absolute;
+      pointer-events: auto;
+      z-index: 30;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .rotate-handle {
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border: 2px solid #1a73e8;
+      border-radius: 50%;
+      position: absolute;
+      top: -26px;
+      left: 50%;
+      transform: translateX(-50%);
+      cursor: grab;
+      pointer-events: auto;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .rotate-line {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      width: 1.5px;
+      height: 14px;
+      background: #1a73e8;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    /* Subtle tooltip styling */
+    [data-tooltip] {
+      position: relative;
+    }
+    [data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 115%;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #202124;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+      z-index: 100;
+      pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .tooltip-bottom[data-tooltip]:hover::after {
+      left: 50%;
+      top: 120%;
+      transform: translateX(-50%);
+    }
+
+    /* Active tool pill highlight */
+    .tool-btn.active {
+      background-color: #e8f0fe;
+      color: #1a73e8;
+    }
+    .tool-btn.active svg {
+      stroke: #1a73e8;
+    }
+  </style>
+</head>
+<body class="text-gray-800 antialiased">
+
+  <!-- ==================== TOP BAR ==================== -->
+  <header class="fixed top-0 left-0 right-0 h-14 bg-white/95 backdrop-blur border-b border-gray-200 px-3 sm:px-5 flex items-center justify-between z-40 shadow-xs">
+    
+    <!-- Left: Brand & Editable Jam Title -->
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shadow-sm shrink-0">
+        <!-- Jamboard-inspired geometric icon -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <rect x="11" y="3" width="7" height="7" rx="1.5" fill="#FFF"/>
+          <rect x="11" y="10" width="7" height="7" fill="#FDE68A"/>
+          <path d="M11 17C11 19.7614 8.76142 22 6 22C4.34315 22 3 20.6569 3 19C3 17.3431 4.34315 16 6 16H11V17Z" fill="#FFF"/>
+        </svg>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <input
+          id="jamTitleInput"
+          type="text"
+          value="Untitled Jam"
+          aria-label="Jam Title"
+          class="text-sm sm:text-base font-semibold text-gray-800 bg-transparent hover:bg-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none rounded-lg px-2 py-0.5 truncate max-w-[140px] sm:max-w-[220px] transition"
+        />
+      </div>
+    </div>
+
+    <!-- Center: Frame Switcher Bar (Jamboard Signature) -->
+    <div class="flex items-center gap-1 bg-gray-100/90 border border-gray-200/80 rounded-full px-2 py-1 shadow-2xs">
+      <button id="prevFrameBtn" class="p-1.5 rounded-full hover:bg-white hover:shadow-2xs disabled:opacity-35 disabled:pointer-events-none transition" title="Previous Frame">
+        <i data-lucide="chevron-left" class="w-4 h-4 text-gray-700"></i>
+      </button>
+
+      <button id="frameOverviewBtn" class="px-2.5 py-1 rounded-full hover:bg-white text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 transition" title="Manage Frames">
+        <span id="frameIndicator">1 / 1</span>
+        <i data-lucide="layers" class="w-3.5 h-3.5 text-gray-500"></i>
+      </button>
+
+      <button id="nextFrameBtn" class="p-1.5 rounded-full hover:bg-white hover:shadow-2xs transition" title="Next Frame (or create new)">
+        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-700"></i>
+      </button>
+
+      <div class="h-4 w-px bg-gray-300 mx-0.5"></div>
+
+      <button id="addFrameBtn" class="p-1.5 rounded-full hover:bg-white text-blue-600 hover:shadow-2xs transition" title="Add New Frame">
+        <i data-lucide="plus" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Right: History, Zoom, Background, Clear, Export -->
+    <div class="flex items-center gap-1 sm:gap-1.5">
+      <!-- Undo / Redo -->
+      <div class="hidden sm:flex items-center bg-gray-100 rounded-full p-0.5 border border-gray-200/70">
+        <button id="undoBtn" class="p-1.5 rounded-full hover:bg-white disabled:opacity-35 transition tooltip-bottom" data-tooltip="Undo (Ctrl+Z)">
+          <i data-lucide="undo-2" class="w-4 h-4 text-gray-700"></i>
+        </button>
+        <button id="redoBtn" class="p-1.5 rounded-full hover:bg-white disabled:opacity-35 transition tooltip-bottom" data-tooltip="Redo (Ctrl+Y)">
+          <i data-lucide="redo-2" class="w-4 h-4 text-gray-700"></i>
+        </button>
+      </div>
+
+      <!-- Zoom Controls -->
+      <div class="relative">
+        <button id="zoomMenuBtn" class="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/70 border border-gray-200/70 text-xs font-medium text-gray-700 transition">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500"></i>
+          <span id="zoomLabel">100%</span>
+        </button>
+        <!-- Zoom Dropdown -->
+        <div id="zoomPopover" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-200 p-1.5 z-50">
+          <button data-zoom="in" class="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-xl">
+            <span>Zoom In</span><span class="text-gray-400">Ctrl +</span>
+          </button>
+          <button data-zoom="out" class="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-xl">
+            <span>Zoom Out</span><span class="text-gray-400">Ctrl -</span>
+          </button>
+          <button data-zoom="reset" class="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-xl">
+            <span>Fit / Reset (100%)</span><span class="text-gray-400">Ctrl 0</span>
+          </button>
+          <div class="my-1 border-t border-gray-100"></div>
+          <div class="px-3 py-1.5 text-[11px] text-gray-400">
+            Hold <kbd class="px-1 py-0.5 bg-gray-100 rounded text-gray-600">Space</kbd> + Drag to pan
+          </div>
+        </div>
+      </div>
+
+      <!-- Set Background Button -->
+      <div class="relative">
+        <button id="bgMenuBtn" class="px-2.5 py-1.5 rounded-full bg-white hover:bg-gray-100 border border-gray-200 text-xs font-medium text-gray-700 flex items-center gap-1.5 transition shadow-2xs">
+          <i data-lucide="grid" class="w-3.5 h-3.5 text-gray-600"></i>
+          <span class="hidden md:inline">Background</span>
+        </button>
+        <!-- Background Picker Popover -->
+        <div id="bgPopover" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-50">
+          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5 px-1">Frame Background</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-bg="plain" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-blue-500 bg-blue-50/30">
+              <div class="w-full h-10 rounded-lg bg-white border border-gray-200 shadow-2xs"></div>
+              <span class="text-[11px] font-medium text-gray-700">Plain</span>
+            </button>
+            <button data-bg="dots" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-transparent hover:bg-gray-50">
+              <div class="w-full h-10 rounded-lg bg-white border border-gray-200" style="background-image: radial-gradient(#9ca3af 1px, transparent 1px); background-size: 8px 8px;"></div>
+              <span class="text-[11px] font-medium text-gray-700">Dots</span>
+            </button>
+            <button data-bg="ruled" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-transparent hover:bg-gray-50">
+              <div class="w-full h-10 rounded-lg bg-white border border-gray-200" style="background-image: linear-gradient(#cbd5e1 1px, transparent 1px); background-size: 100% 8px;"></div>
+              <span class="text-[11px] font-medium text-gray-700">Ruled</span>
+            </button>
+            <button data-bg="graph" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-transparent hover:bg-gray-50">
+              <div class="w-full h-10 rounded-lg bg-white border border-gray-200" style="background-image: linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px); background-size: 8px 8px;"></div>
+              <span class="text-[11px] font-medium text-gray-700">Graph</span>
+            </button>
+            <button data-bg="blueprint" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-transparent hover:bg-gray-50">
+              <div class="w-full h-10 rounded-lg bg-[#1e3a8a] border border-blue-900"></div>
+              <span class="text-[11px] font-medium text-gray-700">Blue</span>
+            </button>
+            <button data-bg="chalkboard" class="bg-option group flex flex-col items-center gap-1 p-1.5 rounded-xl border-2 border-transparent hover:bg-gray-50">
+              <div class="w-full h-10 rounded-lg bg-[#1f2937] border border-gray-800"></div>
+              <span class="text-[11px] font-medium text-gray-700">Dark</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clear Frame -->
+      <button id="clearFrameBtn" class="px-2.5 py-1.5 rounded-full bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-gray-200 text-xs font-medium text-gray-700 flex items-center gap-1.5 transition shadow-2xs" title="Clear Current Frame">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        <span class="hidden lg:inline">Clear frame</span>
+      </button>
+
+      <!-- Export PNG -->
+      <button id="exportPngBtn" class="px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition" title="Save Frame as PNG">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">Export</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== FRAME OVERVIEW DRAWER (MULTI-FRAME MANAGER) ==================== -->
+  <div id="frameOverviewBar" class="hidden fixed top-14 left-0 right-0 bg-gray-100/95 backdrop-blur-md border-b border-gray-200 px-6 py-4 z-35 shadow-lg transition-all">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Frame Manager</span>
+        <button id="closeOverviewBtn" class="p-1 rounded-full hover:bg-gray-200 text-gray-600">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="frameThumbnailsList" class="flex items-center gap-4 overflow-x-auto pb-2">
+        <!-- Dynamically populated thumbnails -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== LEFT FLOATING VERTICAL TOOLBAR ==================== -->
+  <aside id="leftToolbar" class="fixed left-3 sm:left-4 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur border border-gray-200/90 rounded-full py-2.5 px-1.5 flex flex-col items-center gap-1.5 shadow-xl z-30">
+    
+    <!-- Pen / Brush Tool -->
+    <div class="relative">
+      <button data-tool="pen" class="tool-btn active w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition relative" data-tooltip="Pen (P)">
+        <i data-lucide="pen-tool" class="w-5 h-5 text-gray-700"></i>
+        <span id="activePenColorDot" class="w-2.5 h-2.5 rounded-full bg-gray-900 border border-white absolute bottom-1.5 right-1.5 shadow-2xs"></span>
+      </button>
+
+      <!-- Pen Sub-menu Popover -->
+      <div id="penPopover" class="hidden absolute left-14 top-0 bg-white rounded-2xl shadow-xl border border-gray-200 p-3.5 w-60 z-50">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Brush Type</div>
+        <div class="grid grid-cols-4 gap-1.5 mb-3">
+          <button data-pen-type="pen" class="pen-type-btn active flex flex-col items-center p-2 rounded-xl border border-blue-500 bg-blue-50 text-blue-600" title="Fine Pen">
+            <i data-lucide="pen" class="w-4 h-4"></i>
+            <span class="text-[10px] mt-1 font-medium">Pen</span>
+          </button>
+          <button data-pen-type="marker" class="pen-type-btn flex flex-col items-center p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700" title="Thick Marker">
+            <i data-lucide="highlighter" class="w-4 h-4"></i>
+            <span class="text-[10px] mt-1 font-medium">Marker</span>
+          </button>
+          <button data-pen-type="highlighter" class="pen-type-btn flex flex-col items-center p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700" title="Highlighter">
+            <i data-lucide="sun" class="w-4 h-4"></i>
+            <span class="text-[10px] mt-1 font-medium">Glow</span>
+          </button>
+          <button data-pen-type="brush" class="pen-type-btn flex flex-col items-center p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700" title="Watercolor Brush">
+            <i data-lucide="paintbrush" class="w-4 h-4"></i>
+            <span class="text-[10px] mt-1 font-medium">Brush</span>
+          </button>
+        </div>
+
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Stroke Size</div>
+        <div class="flex items-center justify-between gap-2 mb-3 bg-gray-50 p-1.5 rounded-xl">
+          <button data-stroke-size="3" class="stroke-size-btn active flex-1 h-7 rounded-lg bg-white shadow-2xs flex items-center justify-center">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-800"></span>
+          </button>
+          <button data-stroke-size="6" class="stroke-size-btn flex-1 h-7 rounded-lg hover:bg-white flex items-center justify-center">
+            <span class="w-2.5 h-2.5 rounded-full bg-gray-800"></span>
+          </button>
+          <button data-stroke-size="12" class="stroke-size-btn flex-1 h-7 rounded-lg hover:bg-white flex items-center justify-center">
+            <span class="w-3.5 h-3.5 rounded-full bg-gray-800"></span>
+          </button>
+          <button data-stroke-size="22" class="stroke-size-btn flex-1 h-7 rounded-lg hover:bg-white flex items-center justify-center">
+            <span class="w-5 h-5 rounded-full bg-gray-800"></span>
+          </button>
+        </div>
+
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Color</div>
+        <div class="flex items-center justify-between gap-1.5">
+          <button data-pen-color="#1f2937" class="pen-color-btn w-7 h-7 rounded-full bg-[#1f2937] ring-2 ring-offset-2 ring-blue-500"></button>
+          <button data-pen-color="#1a73e8" class="pen-color-btn w-7 h-7 rounded-full bg-[#1a73e8]"></button>
+          <button data-pen-color="#188038" class="pen-color-btn w-7 h-7 rounded-full bg-[#188038]"></button>
+          <button data-pen-color="#f9ab00" class="pen-color-btn w-7 h-7 rounded-full bg-[#f9ab00]"></button>
+          <button data-pen-color="#d93025" class="pen-color-btn w-7 h-7 rounded-full bg-[#d93025]"></button>
+          <button data-pen-color="#ffffff" class="pen-color-btn w-7 h-7 rounded-full bg-white border border-gray-300"></button>
+          <label class="w-7 h-7 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 cursor-pointer flex items-center justify-center overflow-hidden shadow-2xs" title="Custom Color">
+            <input type="color" id="customPenColorInput" value="#8b5cf6" class="opacity-0 w-full h-full cursor-pointer" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Eraser Tool -->
+    <button data-tool="eraser" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Eraser (E)">
+      <i data-lucide="eraser" class="w-5 h-5 text-gray-700"></i>
+    </button>
+
+    <!-- Select / Pointer Tool -->
+    <button data-tool="select" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Select (V)">
+      <i data-lucide="mouse-pointer-2" class="w-5 h-5 text-gray-700"></i>
+    </button>
+
+    <!-- Sticky Note Tool -->
+    <button data-tool="sticky" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Sticky Note (S)">
+      <i data-lucide="sticky-note" class="w-5 h-5 text-gray-700"></i>
+    </button>
+
+    <!-- Add Image Tool -->
+    <button data-tool="image" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Add Image (I)">
+      <i data-lucide="image" class="w-5 h-5 text-gray-700"></i>
+    </button>
+    <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" class="hidden" />
+
+    <!-- Shapes Tool -->
+    <div class="relative">
+      <button data-tool="shape" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Shapes (R)">
+        <i data-lucide="shapes" class="w-5 h-5 text-gray-700"></i>
+      </button>
+
+      <!-- Shape Picker Popover -->
+      <div id="shapePopover" class="hidden absolute left-14 top-0 bg-white rounded-2xl shadow-xl border border-gray-200 p-3.5 w-60 z-50">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Select Shape</div>
+        <div class="grid grid-cols-3 gap-1.5 mb-3">
+          <button data-shape-type="circle" class="shape-type-btn active p-2 rounded-xl border border-blue-500 bg-blue-50 text-blue-600 flex flex-col items-center gap-1">
+            <i data-lucide="circle" class="w-5 h-5"></i>
+            <span class="text-[10px]">Circle</span>
+          </button>
+          <button data-shape-type="square" class="shape-type-btn p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 flex flex-col items-center gap-1">
+            <i data-lucide="square" class="w-5 h-5"></i>
+            <span class="text-[10px]">Square</span>
+          </button>
+          <button data-shape-type="rounded" class="shape-type-btn p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 flex flex-col items-center gap-1">
+            <i data-lucide="rectangle-horizontal" class="w-5 h-5"></i>
+            <span class="text-[10px]">Rounded</span>
+          </button>
+          <button data-shape-type="triangle" class="shape-type-btn p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 flex flex-col items-center gap-1">
+            <i data-lucide="triangle" class="w-5 h-5"></i>
+            <span class="text-[10px]">Triangle</span>
+          </button>
+          <button data-shape-type="diamond" class="shape-type-btn p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 flex flex-col items-center gap-1">
+            <i data-lucide="diamond" class="w-5 h-5"></i>
+            <span class="text-[10px]">Diamond</span>
+          </button>
+          <button data-shape-type="arrow" class="shape-type-btn p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 flex flex-col items-center gap-1">
+            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            <span class="text-[10px]">Arrow</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+          <div>
+            <label class="text-[10px] font-semibold text-gray-500 block mb-1">Border</label>
+            <div class="flex items-center gap-1">
+              <button data-shape-stroke="#1f2937" class="shape-stroke-btn w-5 h-5 rounded-full bg-[#1f2937] ring-2 ring-offset-1 ring-blue-500"></button>
+              <button data-shape-stroke="#1a73e8" class="shape-stroke-btn w-5 h-5 rounded-full bg-[#1a73e8]"></button>
+              <button data-shape-stroke="#d93025" class="shape-stroke-btn w-5 h-5 rounded-full bg-[#d93025]"></button>
+              <button data-shape-stroke="#188038" class="shape-stroke-btn w-5 h-5 rounded-full bg-[#188038]"></button>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-gray-500 block mb-1">Fill</label>
+            <div class="flex items-center gap-1">
+              <button data-shape-fill="transparent" class="shape-fill-btn w-5 h-5 rounded-full bg-white border border-gray-300 ring-2 ring-offset-1 ring-blue-500 flex items-center justify-center text-[9px] text-red-500 font-bold">/</button>
+              <button data-shape-fill="#ffffff" class="shape-fill-btn w-5 h-5 rounded-full bg-white border border-gray-300"></button>
+              <button data-shape-fill="#fef08a" class="shape-fill-btn w-5 h-5 rounded-full bg-[#fef08a]"></button>
+              <button data-shape-fill="#bfdbfe" class="shape-fill-btn w-5 h-5 rounded-full bg-[#bfdbfe]"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Box Tool -->
+    <button data-tool="text" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition" data-tooltip="Text Box (T)">
+      <i data-lucide="type" class="w-5 h-5 text-gray-700"></i>
+    </button>
+
+    <div class="w-6 h-px bg-gray-200 my-0.5"></div>
+
+    <!-- Laser Pointer Tool -->
+    <button data-tool="laser" class="tool-btn w-10 h-10 rounded-full flex items-center justify-center hover:bg-red-50 transition" data-tooltip="Laser Pointer (L)">
+      <i data-lucide="sparkles" class="w-5 h-5 text-red-500"></i>
+    </button>
+  </aside>
+
+  <!-- ==================== CONTEXTUAL OBJECT TOOLBAR (WHEN OBJECT SELECTED) ==================== -->
+  <div id="objectContextBar" class="hidden fixed top-16 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur border border-gray-200 rounded-full px-3 py-1.5 shadow-lg z-35 flex items-center gap-1.5 max-w-[95vw] overflow-x-auto">
+    <!-- Text Formatting Controls (shown for text/sticky) -->
+    <div id="textFormatControls" class="hidden flex items-center gap-1.5 border-r border-gray-200 pr-2.5 mr-1 shrink-0">
+      <select id="objFontFamilySelect" class="text-xs font-medium bg-gray-100 hover:bg-gray-200/70 rounded-lg px-2 py-1 focus:outline-none cursor-pointer" title="Font Style">
+        <option value="sans">Sans</option>
+        <option value="serif">Serif</option>
+        <option value="mono">Mono</option>
+        <option value="handwriting">Handwriting</option>
+      </select>
+      <select id="objFontSizeSelect" class="text-xs font-medium bg-gray-100 hover:bg-gray-200/70 rounded-lg px-2 py-1 focus:outline-none cursor-pointer" title="Font Size">
+        <option value="16">Caption (16px)</option>
+        <option value="22" selected>Normal (22px)</option>
+        <option value="32">Title (32px)</option>
+        <option value="48">Display (48px)</option>
+      </select>
+      <div class="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+        <button id="objBoldBtn" class="p-1 rounded-md hover:bg-white transition" title="Bold (Ctrl+B)"><i data-lucide="bold" class="w-3.5 h-3.5"></i></button>
+        <button id="objItalicBtn" class="p-1 rounded-md hover:bg-white transition" title="Italic (Ctrl+I)"><i data-lucide="italic" class="w-3.5 h-3.5"></i></button>
+      </div>
+      <div class="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+        <button data-align="left" class="obj-align-btn p-1 rounded-md hover:bg-white transition" title="Align Left"><i data-lucide="align-left" class="w-3.5 h-3.5"></i></button>
+        <button data-align="center" class="obj-align-btn p-1 rounded-md hover:bg-white transition" title="Align Center"><i data-lucide="align-center" class="w-3.5 h-3.5"></i></button>
+        <button data-align="right" class="obj-align-btn p-1 rounded-md hover:bg-white transition" title="Align Right"><i data-lucide="align-right" class="w-3.5 h-3.5"></i></button>
+      </div>
+      <div class="flex items-center gap-1 pl-0.5">
+        <button data-text-color="#1f2937" class="obj-text-color-swatch w-5 h-5 rounded-full bg-[#1f2937] border border-gray-300 hover:scale-110 transition" title="Dark Gray"></button>
+        <button data-text-color="#1a73e8" class="obj-text-color-swatch w-5 h-5 rounded-full bg-[#1a73e8] hover:scale-110 transition" title="Blue"></button>
+        <button data-text-color="#188038" class="obj-text-color-swatch w-5 h-5 rounded-full bg-[#188038] hover:scale-110 transition" title="Green"></button>
+        <button data-text-color="#d93025" class="obj-text-color-swatch w-5 h-5 rounded-full bg-[#d93025] hover:scale-110 transition" title="Red"></button>
+        <button data-text-color="#ffffff" class="obj-text-color-swatch w-5 h-5 rounded-full bg-white border border-gray-300 hover:scale-110 transition" title="White"></button>
+        <input type="color" id="objTextColorInput" value="#1f2937" class="w-5 h-5 rounded-full cursor-pointer border-0 bg-transparent" title="Custom Text Color" />
+      </div>
+    </div>
+
+    <button id="editObjBtn" class="hidden px-2.5 py-1 rounded-full hover:bg-gray-100 text-xs font-medium text-gray-700 flex items-center gap-1">
+      <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+    </button>
+    <button id="duplicateObjBtn" class="p-1.5 rounded-full hover:bg-gray-100 text-gray-700" title="Duplicate (Ctrl+D)">
+      <i data-lucide="copy" class="w-4 h-4"></i>
+    </button>
+    <button id="bringFrontBtn" class="p-1.5 rounded-full hover:bg-gray-100 text-gray-700" title="Bring to Front">
+      <i data-lucide="bring-to-front" class="w-4 h-4"></i>
+    </button>
+    <button id="sendBackBtn" class="p-1.5 rounded-full hover:bg-gray-100 text-gray-700" title="Send to Back">
+      <i data-lucide="send-to-back" class="w-4 h-4"></i>
+    </button>
+    <div class="w-px h-4 bg-gray-200 mx-0.5"></div>
+    <button id="deleteObjBtn" class="p-1.5 rounded-full hover:bg-red-50 text-red-600" title="Delete (Del)">
+      <i data-lucide="trash-2" class="w-4 h-4"></i>
+    </button>
+  </div>
+
+  <!-- ==================== MAIN INTERACTIVE WORKSPACE ==================== -->
+  <main id="workspaceViewport" class="fixed inset-0 pt-14 overflow-hidden flex items-center justify-center bg-[#f1f3f4]">
+    <!-- Transformable Board Stage (16:9 Jamboard proportions, responsive scaling) -->
+    <div id="boardContainer" class="relative shadow-2xl rounded-lg overflow-hidden bg-white transition-colors duration-200" style="width: 1280px; height: 720px; transform-origin: center center;">
+      
+      <!-- Layer 1: Background Pattern Layer -->
+      <div id="boardBackgroundLayer" class="absolute inset-0 pointer-events-none"></div>
+
+      <!-- Layer 2: Permanent Ink Drawing Canvas -->
+      <canvas id="drawingCanvas" width="1280" height="720" class="absolute inset-0 w-full h-full"></canvas>
+
+      <!-- Layer 3: Interactive Objects Layer (Sticky Notes, Shapes, Text Boxes, Images) -->
+      <div id="objectsLayer" class="absolute inset-0 overflow-hidden"></div>
+
+      <!-- Layer 4: Ephemeral Laser Pointer & Active Stroke Preview Canvas -->
+      <canvas id="overlayCanvas" width="1280" height="720" class="absolute inset-0 w-full h-full pointer-events-none z-20"></canvas>
+
+    </div>
+  </main>
+
+  <!-- ==================== STICKY NOTE MODAL (JAMBOARD CLASSIC) ==================== -->
+  <div id="stickyModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-gray-800">Sticky Note</h3>
+        <button id="closeStickyModalBtn" class="p-1.5 rounded-full hover:bg-gray-100 text-gray-500">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Color Swatches -->
+      <div class="flex items-center justify-center gap-3 mb-4">
+        <button data-sticky-color="#fff475" class="sticky-color-swatch w-8 h-8 rounded-full bg-[#fff475] border-2 border-gray-800 shadow-xs transition-transform scale-110" title="Yellow"></button>
+        <button data-sticky-color="#ccff90" class="sticky-color-swatch w-8 h-8 rounded-full bg-[#ccff90] border border-gray-300 shadow-xs transition-transform" title="Green"></button>
+        <button data-sticky-color="#cbf0f8" class="sticky-color-swatch w-8 h-8 rounded-full bg-[#cbf0f8] border border-gray-300 shadow-xs transition-transform" title="Blue"></button>
+        <button data-sticky-color="#fdcfe8" class="sticky-color-swatch w-8 h-8 rounded-full bg-[#fdcfe8] border border-gray-300 shadow-xs transition-transform" title="Pink"></button>
+        <button data-sticky-color="#fbbc04" class="sticky-color-swatch w-8 h-8 rounded-full bg-[#fbbc04] border border-gray-300 shadow-xs transition-transform" title="Orange"></button>
+        <button data-sticky-color="transparent" class="sticky-color-swatch w-8 h-8 rounded-full bg-white border border-gray-300 shadow-xs flex items-center justify-center text-xs text-gray-400 font-bold" title="None / Transparent">/</button>
+      </div>
+
+      <!-- Sticky Note Preview Box -->
+      <div id="stickyPreviewCard" class="w-full h-52 rounded-2xl p-5 shadow-md transition-colors duration-150 flex items-center justify-center border border-black/5" style="background-color: #fff475;">
+        <textarea
+          id="stickyTextarea"
+          placeholder="Type your note here..."
+          maxlength="240"
+          class="w-full h-full bg-transparent resize-none border-none focus:outline-none text-gray-900 text-xl font-medium text-center flex items-center justify-center placeholder-gray-600/60"
+          style="font-family: 'Inter', sans-serif;"
+        ></textarea>
+      </div>
+
+      <div class="flex items-center justify-between mt-5">
+        <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" id="stickyHandwritingToggle" class="rounded text-blue-600 focus:ring-blue-500" />
+          <span>Handwriting font</span>
+        </label>
+        <div class="flex items-center gap-2">
+          <button id="cancelStickyBtn" class="px-4 py-2 rounded-full text-sm font-medium text-gray-600 hover:bg-gray-100 transition">Cancel</button>
+          <button id="saveStickyBtn" class="px-5 py-2 rounded-full text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CLEAR FRAME CONFIRMATION MODAL ==================== -->
+  <div id="clearConfirmModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6">
+      <h3 class="text-base font-semibold text-gray-900 mb-2">Clear this frame?</h3>
+      <p class="text-sm text-gray-600 mb-5">This will remove all drawings, sticky notes, shapes, and images on the current frame. You can still undo this action.</p>
+      <div class="flex justify-end gap-2">
+        <button id="cancelClearBtn" class="px-4 py-2 rounded-full text-sm font-medium text-gray-600 hover:bg-gray-100">Cancel</button>
+        <button id="confirmClearBtn" class="px-4 py-2 rounded-full text-sm font-medium bg-red-600 hover:bg-red-700 text-white">Clear frame</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION ==================== -->
+  <div id="toastNotification" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg z-50 transition-opacity">
+    Saved!
+  </div>
+
+  <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+  <script>
+    /**
+     * Google Jamboard Clone — Complete State & Canvas Engine
+     * Built with vanilla JS, HTML5 2D Canvas, and DOM-based vector/object manipulation.
+     */
+    (function () {
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // -------------------- CONSTANTS & CONFIG --------------------
+      const BOARD_WIDTH = 1280;
+      const BOARD_HEIGHT = 720;
+
+      // -------------------- APPLICATION STATE --------------------
+      const state = {
+        frames: [],
+        currentFrameIndex: 0,
+        activeTool: 'pen', // 'pen' | 'eraser' | 'select' | 'sticky' | 'image' | 'shape' | 'text' | 'laser'
+        pen: {
+          type: 'pen',     // 'pen' | 'marker' | 'highlighter' | 'brush'
+          color: '#1f2937',
+          size: 3
+        },
+        shape: {
+          type: 'circle',  // 'circle' | 'square' | 'rounded' | 'triangle' | 'diamond' | 'arrow'
+          stroke: '#1f2937',
+          fill: 'transparent'
+        },
+        sticky: {
+          color: '#fff475',
+          handwriting: false,
+          editingId: null
+        },
+        viewport: {
+          scale: 1,
+          panX: 0,
+          panY: 0,
+          isPanning: false,
+          spacePressed: false,
+          lastPanClientX: 0,
+          lastPanClientY: 0
+        },
+        selectedObjectId: null,
+        editingTextObjectId: null,
+        isDrawing: false,
+        currentStroke: null,
+        shapePreview: null,
+        laserTrail: []
+      };
+
+      // -------------------- DOM ELEMENT REFERENCES --------------------
+      const workspaceViewport = document.getElementById('workspaceViewport');
+      const boardContainer = document.getElementById('boardContainer');
+      const boardBackgroundLayer = document.getElementById('boardBackgroundLayer');
+      const drawingCanvas = document.getElementById('drawingCanvas');
+      const drawingCtx = drawingCanvas.getContext('2d');
+      const overlayCanvas = document.getElementById('overlayCanvas');
+      const overlayCtx = overlayCanvas.getContext('2d');
+      const objectsLayer = document.getElementById('objectsLayer');
+
+      // Top bar controls
+      const prevFrameBtn = document.getElementById('prevFrameBtn');
+      const nextFrameBtn = document.getElementById('nextFrameBtn');
+      const addFrameBtn = document.getElementById('addFrameBtn');
+      const frameOverviewBtn = document.getElementById('frameOverviewBtn');
+      const frameIndicator = document.getElementById('frameIndicator');
+      const frameOverviewBar = document.getElementById('frameOverviewBar');
+      const frameThumbnailsList = document.getElementById('frameThumbnailsList');
+      const closeOverviewBtn = document.getElementById('closeOverviewBtn');
+
+      const undoBtn = document.getElementById('undoBtn');
+      const redoBtn = document.getElementById('redoBtn');
+      const zoomMenuBtn = document.getElementById('zoomMenuBtn');
+      const zoomPopover = document.getElementById('zoomPopover');
+      const zoomLabel = document.getElementById('zoomLabel');
+      const bgMenuBtn = document.getElementById('bgMenuBtn');
+      const bgPopover = document.getElementById('bgPopover');
+      const clearFrameBtn = document.getElementById('clearFrameBtn');
+      const exportPngBtn = document.getElementById('exportPngBtn');
+
+      // Tool popovers & modals
+      const penPopover = document.getElementById('penPopover');
+      const shapePopover = document.getElementById('shapePopover');
+      const activePenColorDot = document.getElementById('activePenColorDot');
+      const imageFileInput = document.getElementById('imageFileInput');
+
+      // Sticky Modal
+      const stickyModal = document.getElementById('stickyModal');
+      const stickyPreviewCard = document.getElementById('stickyPreviewCard');
+      const stickyTextarea = document.getElementById('stickyTextarea');
+      const stickyHandwritingToggle = document.getElementById('stickyHandwritingToggle');
+      const saveStickyBtn = document.getElementById('saveStickyBtn');
+      const cancelStickyBtn = document.getElementById('cancelStickyBtn');
+      const closeStickyModalBtn = document.getElementById('closeStickyModalBtn');
+
+      // Context Bar
+      const objectContextBar = document.getElementById('objectContextBar');
+      const textFormatControls = document.getElementById('textFormatControls');
+      const objFontFamilySelect = document.getElementById('objFontFamilySelect');
+      const objFontSizeSelect = document.getElementById('objFontSizeSelect');
+      const objBoldBtn = document.getElementById('objBoldBtn');
+      const objItalicBtn = document.getElementById('objItalicBtn');
+      const objTextColorInput = document.getElementById('objTextColorInput');
+      const editObjBtn = document.getElementById('editObjBtn');
+      const duplicateObjBtn = document.getElementById('duplicateObjBtn');
+      const bringFrontBtn = document.getElementById('bringFrontBtn');
+      const sendBackBtn = document.getElementById('sendBackBtn');
+      const deleteObjBtn = document.getElementById('deleteObjBtn');
+
+      // -------------------- UTILITY FUNCTIONS --------------------
+      const FONT_FAMILIES = {
+        sans: { css: "'Inter', sans-serif", canvas: "Inter, sans-serif" },
+        serif: { css: "'Playfair Display', Georgia, serif", canvas: "'Playfair Display', Georgia, serif" },
+        mono: { css: "'JetBrains Mono', monospace", canvas: "'JetBrains Mono', monospace" },
+        handwriting: { css: "'Kalam', cursive", canvas: "Kalam, cursive" }
+      };
+
+      function getObjFontStyleKey(obj) {
+        if (obj.fontFamily && FONT_FAMILIES[obj.fontFamily]) return obj.fontFamily;
+        return obj.handwriting ? 'handwriting' : 'sans';
+      }
+
+      function getObjFontCSS(obj) {
+        return FONT_FAMILIES[getObjFontStyleKey(obj)].css;
+      }
+
+      function getObjCanvasFont(obj, defaultSize) {
+        const weight = obj.fontWeight === 'bold' ? '700' : '500';
+        const style = obj.fontStyle === 'italic' ? 'italic ' : '';
+        const size = obj.fontSize || defaultSize;
+        const family = FONT_FAMILIES[getObjFontStyleKey(obj)].canvas;
+        return `${style}${weight} ${size}px ${family}`;
+      }
+
+      function generateId() {
+        return 'obj_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toastNotification');
+        toast.textContent = message;
+        toast.classList.remove('hidden');
+        toast.style.opacity = '1';
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          setTimeout(() => toast.classList.add('hidden'), 300);
+        }, 2200);
+      }
+
+      // -------------------- FRAME MANAGEMENT & HISTORY --------------------
+      function createEmptyFrame() {
+        return {
+          background: 'plain',
+          strokes: [],
+          objects: [],
+          history: [],
+          redoStack: []
+        };
+      }
+
+      function getCurrentFrame() {
+        return state.frames[state.currentFrameIndex];
+      }
+
+      function pushHistory() {
+        const frame = getCurrentFrame();
+        const snapshot = JSON.stringify({
+          strokes: frame.strokes,
+          objects: frame.objects
+        });
+        frame.history.push(snapshot);
+        if (frame.history.length > 30) frame.history.shift();
+        frame.redoStack = [];
+        updateHistoryButtons();
+      }
+
+      function updateHistoryButtons() {
+        const frame = getCurrentFrame();
+        if (!frame) return;
+        undoBtn.disabled = frame.history.length === 0;
+        redoBtn.disabled = frame.redoStack.length === 0;
+      }
+
+      function undo() {
+        const frame = getCurrentFrame();
+        if (frame.history.length === 0) return;
+        const currentSnapshot = JSON.stringify({
+          strokes: frame.strokes,
+          objects: frame.objects
+        });
+        frame.redoStack.push(currentSnapshot);
+        const previousSnapshot = frame.history.pop();
+        const parsed = JSON.parse(previousSnapshot);
+        frame.strokes = parsed.strokes;
+        frame.objects = parsed.objects;
+        state.selectedObjectId = null;
+        state.editingTextObjectId = null;
+        redrawAll();
+        updateHistoryButtons();
+        showToast('Undo');
+      }
+
+      function redo() {
+        const frame = getCurrentFrame();
+        if (frame.redoStack.length === 0) return;
+        const currentSnapshot = JSON.stringify({
+          strokes: frame.strokes,
+          objects: frame.objects
+        });
+        frame.history.push(currentSnapshot);
+        const nextSnapshot = frame.redoStack.pop();
+        const parsed = JSON.parse(nextSnapshot);
+        frame.strokes = parsed.strokes;
+        frame.objects = parsed.objects;
+        state.selectedObjectId = null;
+        state.editingTextObjectId = null;
+        redrawAll();
+        updateHistoryButtons();
+        showToast('Redo');
+      }
+
+      // -------------------- INITIALIZATION & RESIZING --------------------
+      function initJamboard() {
+        state.frames.push(createEmptyFrame());
+        updateFrameUI();
+        updateViewportTransform();
+        setupEventListeners();
+        requestAnimationFrame(animationLoop);
+      }
+
+      function updateViewportTransform() {
+        const viewportW = workspaceViewport.clientWidth;
+        const viewportH = workspaceViewport.clientHeight;
+        const scaleX = (viewportW - 64) / BOARD_WIDTH;
+        const scaleY = (viewportH - 80) / BOARD_HEIGHT;
+        let scale = Math.min(scaleX, scaleY, 1.2);
+        scale = Math.max(0.3, Math.min(scale, 2.5));
+        state.viewport.scale = scale;
+
+        boardContainer.style.transform = `translate(${state.viewport.panX}px, ${state.viewport.panY}px) scale(${state.viewport.scale})`;
+        zoomLabel.value = `${Math.round(state.viewport.scale * 100)}%`;
+        zoomLabel.textContent = `${Math.round(state.viewport.scale * 100)}%`;
+      }
+
+      window.addEventListener('resize', updateViewportTransform);
+
+      // -------------------- RENDERING ENGINE --------------------
+      function redrawAll() {
+        const frame = getCurrentFrame();
+        if (!frame) return;
+
+        // 1. Background Pattern
+        applyBackgroundStyle(frame.background);
+
+        // 2. Drawing Canvas
+        drawingCtx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        frame.strokes.forEach(stroke => drawStroke(drawingCtx, stroke));
+
+        // 3. Render Objects Layer
+        renderObjects();
+      }
+
+      function applyBackgroundStyle(bgType) {
+        boardBackgroundLayer.className = 'absolute inset-0 pointer-events-none';
+        boardBackgroundLayer.style.backgroundImage = 'none';
+        boardBackgroundLayer.style.backgroundColor = '#ffffff';
+
+        if (bgType === 'dots') {
+          boardBackgroundLayer.style.backgroundImage = 'radial-gradient(#9ca3af 1.5px, transparent 1.5px)';
+          boardBackgroundLayer.style.backgroundSize = '24px 24px';
+        } else if (bgType === 'ruled') {
+          boardBackgroundLayer.style.backgroundImage = 'linear-gradient(#e5e7eb 1px, transparent 1px)';
+          boardBackgroundLayer.style.backgroundSize = '100% 32px';
+        } else if (bgType === 'graph') {
+          boardBackgroundLayer.style.backgroundImage = 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)';
+          boardBackgroundLayer.style.backgroundSize = '24px 24px';
+        } else if (bgType === 'blueprint') {
+          boardBackgroundLayer.style.backgroundColor = '#1e3a8a';
+          boardBackgroundLayer.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)';
+          boardBackgroundLayer.style.backgroundSize = '24px 24px';
+        } else if (bgType === 'chalkboard') {
+          boardBackgroundLayer.style.backgroundColor = '#1f2937';
+        }
+      }
+
+      function drawStroke(ctx, stroke) {
+        if (!stroke.points || stroke.points.length === 0) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (stroke.type === 'highlighter') {
+          ctx.globalAlpha = 0.35;
+          ctx.lineWidth = stroke.size * 3.5;
+        } else if (stroke.type === 'brush') {
+          ctx.globalAlpha = 0.8;
+        }
+
+        const pts = stroke.points;
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function renderObjects() {
+        objectsLayer.innerHTML = '';
+        const frame = getCurrentFrame();
+
+        frame.objects.forEach(obj => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'absolute cursor-pointer group';
+          wrapper.dataset.id = obj.id;
+          wrapper.style.left = `${obj.x}px`;
+          wrapper.style.top = `${obj.y}px`;
+          wrapper.style.width = `${obj.width}px`;
+          wrapper.style.height = `${obj.height}px`;
+          wrapper.style.transform = `rotate(${obj.rotation || 0}deg)`;
+
+          if (state.selectedObjectId === obj.id && state.activeTool === 'select') {
+            wrapper.style.zIndex = '40';
+            const selBox = document.createElement('div');
+            selBox.className = 'selection-box absolute inset-0 rounded-lg';
+            
+            // Resize handles
+            ['top-left', 'top-right', 'bottom-left', 'bottom-right'].forEach(pos => {
+              const handle = document.createElement('div');
+              handle.className = `resize-handle handle-${pos}`;
+              if (pos.includes('top')) handle.style.top = '-6px'; else handle.style.bottom = '-6px';
+              if (pos.includes('left')) handle.style.left = '-6px'; else handle.style.right = '-6px';
+              selBox.appendChild(handle);
+            });
+
+            // Rotate handle & line
+            const rotLine = document.createElement('div');
+            rotLine.className = 'rotate-line';
+            const rotHandle = document.createElement('div');
+            rotHandle.className = 'rotate-handle';
+            rotHandle.innerHTML = '<i data-lucide="rotate-cw" style="width:10px;height:10px;color:#1a73e8;"></i>';
+            selBox.appendChild(rotLine);
+            selBox.appendChild(rotHandle);
+            wrapper.appendChild(selBox);
+          } else {
+            wrapper.style.zIndex = '10';
+          }
+
+          // Render content by object type
+          if (obj.type === 'sticky') {
+            const card = document.createElement('div');
+            card.className = 'sticky-note-card w-full h-full p-4 flex items-center justify-center text-center break-words overflow-hidden rounded-xs';
+            card.style.backgroundColor = obj.color === 'transparent' ? 'transparent' : obj.color;
+            if (obj.color === 'transparent') {
+              card.style.boxShadow = 'none';
+              card.style.border = '1px dashed rgba(156,163,175,0.5)';
+            }
+            card.style.fontFamily = getObjFontCSS(obj);
+            card.style.fontSize = `${obj.fontSize || 22}px`;
+            card.style.color = obj.textColor || '#1f2937';
+            card.style.textAlign = obj.textAlign || 'center';
+            card.style.lineHeight = '1.3';
+            card.style.fontWeight = obj.fontWeight === 'bold' ? '700' : '500';
+            card.style.fontStyle = obj.fontStyle === 'italic' ? 'italic' : 'normal';
+            card.textContent = obj.text;
+            wrapper.appendChild(card);
+
+            wrapper.addEventListener('dblclick', (e) => {
+              e.stopPropagation();
+              openStickyModal(obj);
+            });
+
+          } else if (obj.type === 'shape') {
+            wrapper.innerHTML = getShapeSVG(obj.shapeType, obj.stroke, obj.fill);
+
+          } else if (obj.type === 'text') {
+            if (state.editingTextObjectId === obj.id) {
+              mountInlineTextEditor(wrapper, obj);
+            } else {
+              const textBox = document.createElement('div');
+              textBox.className = 'w-full h-full p-2 outline-none break-words whitespace-pre-wrap leading-normal select-none';
+              textBox.style.fontFamily = getObjFontCSS(obj);
+              textBox.style.fontSize = `${obj.fontSize || 24}px`;
+              textBox.style.color = obj.textColor || '#1f2937';
+              textBox.style.textAlign = obj.textAlign || 'left';
+              textBox.style.fontWeight = obj.fontWeight === 'bold' ? '700' : '500';
+              textBox.style.fontStyle = obj.fontStyle === 'italic' ? 'italic' : 'normal';
+              textBox.textContent = obj.text || 'Double-click to edit';
+              if (!obj.text) textBox.style.opacity = '0.5';
+              wrapper.appendChild(textBox);
+
+              wrapper.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                startEditingTextObject(obj);
+              });
+            }
+
+          } else if (obj.type === 'image') {
+            const img = document.createElement('img');
+            img.src = obj.src;
+            img.className = 'w-full h-full object-contain pointer-events-none rounded-lg';
+            wrapper.appendChild(img);
+          }
+
+          // Object pointer down for dragging/selecting
+          wrapper.addEventListener('pointerdown', (e) => {
+            if (state.activeTool !== 'select') return;
+            e.stopPropagation();
+            selectObject(obj.id);
+            initObjectDrag(e, obj);
+          });
+
+          objectsLayer.appendChild(wrapper);
+        });
+
+        lucide.createIcons();
+        updateObjectContextBar();
+      }
+
+      function mountInlineTextEditor(wrapper, obj) {
+        const editor = document.createElement('textarea');
+        editor.value = obj.text || '';
+        editor.placeholder = 'Type here...';
+        editor.className = 'w-full h-full p-2 bg-white/85 backdrop-blur-2xs border-2 border-blue-500 rounded-lg resize-none focus:outline-none leading-normal shadow-md overflow-hidden';
+        editor.style.fontSize = `${obj.fontSize || 24}px`;
+        editor.style.color = obj.textColor || '#1f2937';
+        editor.style.textAlign = obj.textAlign || 'left';
+        editor.style.fontWeight = obj.fontWeight === 'bold' ? '700' : '500';
+        editor.style.fontStyle = obj.fontStyle === 'italic' ? 'italic' : 'normal';
+        editor.style.fontFamily = getObjFontCSS(obj);
+        editor.style.userSelect = 'text';
+        editor.style.webkitUserSelect = 'text';
+
+        wrapper.appendChild(editor);
+
+        requestAnimationFrame(() => {
+          editor.focus();
+          editor.setSelectionRange(editor.value.length, editor.value.length);
+        });
+
+        editor.addEventListener('input', () => {
+          obj.text = editor.value;
+        });
+
+        editor.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+            e.preventDefault();
+            obj.fontWeight = obj.fontWeight === 'bold' ? 'normal' : 'bold';
+            editor.style.fontWeight = obj.fontWeight === 'bold' ? '700' : '500';
+            updateObjectContextBar();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+            e.preventDefault();
+            obj.fontStyle = obj.fontStyle === 'italic' ? 'normal' : 'italic';
+            editor.style.fontStyle = obj.fontStyle === 'italic' ? 'italic' : 'normal';
+            updateObjectContextBar();
+            return;
+          }
+          if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+            e.preventDefault();
+            editor.blur();
+          }
+        });
+
+        editor.addEventListener('blur', () => {
+          state.editingTextObjectId = null;
+          pushHistory();
+          renderObjects();
+        });
+      }
+
+      function startEditingTextObject(obj) {
+        state.editingTextObjectId = obj.id;
+        state.selectedObjectId = obj.id;
+        renderObjects();
+      }
+
+      function getShapeSVG(type, stroke, fill) {
+        let inner = '';
+        const f = fill === 'transparent' ? 'none' : fill;
+        if (type === 'circle') {
+          inner = `<circle cx="50" cy="50" r="44" stroke="${stroke}" stroke-width="4" fill="${f}" />`;
+        } else if (type === 'square') {
+          inner = `<rect x="8" y="8" width="84" height="84" rx="4" stroke="${stroke}" stroke-width="4" fill="${f}" />`;
+        } else if (type === 'rounded') {
+          inner = `<rect x="6" y="16" width="88" height="68" rx="20" stroke="${stroke}" stroke-width="4" fill="${f}" />`;
+        } else if (type === 'triangle') {
+          inner = `<polygon points="50,8 92,90 8,90" stroke="${stroke}" stroke-width="4" fill="${f}" stroke-linejoin="round" />`;
+        } else if (type === 'diamond') {
+          inner = `<polygon points="50,6 94,50 50,94 6,50" stroke="${stroke}" stroke-width="4" fill="${f}" stroke-linejoin="round" />`;
+        } else if (type === 'arrow') {
+          inner = `<path d="M10,40 H60 V20 L90,50 L60,80 V60 H10 Z" stroke="${stroke}" stroke-width="4" fill="${f}" stroke-linejoin="round" />`;
+        }
+        return `<svg viewBox="0 0 100 100" class="w-full h-full pointer-events-none">${inner}</svg>`;
+      }
+
+      // -------------------- INTERACTION & TOOL HANDLERS --------------------
+      function selectObject(id) {
+        state.selectedObjectId = id;
+        renderObjects();
+      }
+
+      function updateObjectContextBar() {
+        if (!state.selectedObjectId || state.activeTool !== 'select') {
+          objectContextBar.classList.add('hidden');
+          return;
+        }
+        const frame = getCurrentFrame();
+        const obj = frame.objects.find(o => o.id === state.selectedObjectId);
+        if (!obj) {
+          objectContextBar.classList.add('hidden');
+          return;
+        }
+
+        objectContextBar.classList.remove('hidden');
+
+        if (obj.type === 'text' || obj.type === 'sticky') {
+          textFormatControls.classList.remove('hidden');
+          objFontFamilySelect.value = getObjFontStyleKey(obj);
+          const currentSize = obj.fontSize || (obj.type === 'sticky' ? 22 : 24);
+          const presetValues = ['16', '22', '32', '48'];
+          objFontSizeSelect.value = presetValues.includes(String(currentSize)) ? String(currentSize) : '22';
+          objTextColorInput.value = obj.textColor || '#1f2937';
+
+          const isBold = obj.fontWeight === 'bold';
+          objBoldBtn.classList.toggle('bg-white', isBold);
+          objBoldBtn.classList.toggle('shadow-2xs', isBold);
+          objBoldBtn.classList.toggle('text-blue-600', isBold);
+
+          const isItalic = obj.fontStyle === 'italic';
+          objItalicBtn.classList.toggle('bg-white', isItalic);
+          objItalicBtn.classList.toggle('shadow-2xs', isItalic);
+          objItalicBtn.classList.toggle('text-blue-600', isItalic);
+
+          const activeAlign = obj.textAlign || (obj.type === 'sticky' ? 'center' : 'left');
+          document.querySelectorAll('.obj-align-btn').forEach(btn => {
+            const isMatch = btn.dataset.align === activeAlign;
+            btn.classList.toggle('bg-white', isMatch);
+            btn.classList.toggle('shadow-2xs', isMatch);
+            btn.classList.toggle('text-blue-600', isMatch);
+          });
+        } else {
+          textFormatControls.classList.add('hidden');
+        }
+
+        if (obj.type === 'text' || obj.type === 'sticky') {
+          editObjBtn.classList.remove('hidden');
+        } else {
+          editObjBtn.classList.add('hidden');
+        }
+      }
+
+      // -------------------- POINTER EVENTS & DRAWING --------------------
+      function getBoardCoordinates(e) {
+        const rect = boardContainer.getBoundingClientRect();
+        const clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+        const x = (clientX - rect.left) / state.viewport.scale;
+        const y = (clientY - rect.top) / state.viewport.scale;
+        return { x: Math.max(0, Math.min(x, BOARD_WIDTH)), y: Math.max(0, Math.min(y, BOARD_HEIGHT)) };
+      }
+
+      boardContainer.addEventListener('pointerdown', (e) => {
+        // Space + drag panning
+        if (state.viewport.spacePressed || e.button === 1) {
+          state.viewport.isPanning = true;
+          state.viewport.lastPanClientX = e.clientX;
+          state.viewport.lastPanClientY = e.clientY;
+          return;
+        }
+
+        const pt = getBoardCoordinates(e);
+
+        if (state.activeTool === 'pen' || state.activeTool === 'eraser') {
+          state.isDrawing = true;
+          state.currentStroke = {
+            type: state.activeTool === 'eraser' ? 'eraser' : state.pen.type,
+            color: state.activeTool === 'eraser' ? (getCurrentFrame().background === 'blueprint' || getCurrentFrame().background === 'chalkboard' ? '#1f2937' : '#ffffff') : state.pen.color,
+            size: state.activeTool === 'eraser' ? 32 : state.pen.size,
+            points: [pt]
+          };
+        } else if (state.activeTool === 'laser') {
+          state.isDrawing = true;
+          state.laserTrail.push({ x: pt.x, y: pt.y, time: Date.now() });
+        } else if (state.activeTool === 'text') {
+          const isDarkBg = ['blueprint', 'chalkboard'].includes(getCurrentFrame().background);
+          const defaultWidth = 320;
+          const defaultHeight = 120;
+          const newTextObj = {
+            id: generateId(),
+            type: 'text',
+            text: '',
+            x: Math.max(16, Math.min(pt.x, BOARD_WIDTH - defaultWidth - 16)),
+            y: Math.max(16, Math.min(pt.y - 16, BOARD_HEIGHT - defaultHeight - 16)),
+            width: defaultWidth,
+            height: defaultHeight,
+            fontFamily: 'sans',
+            fontWeight: 'normal',
+            fontStyle: 'normal',
+            fontSize: 22,
+            textColor: isDarkBg ? '#ffffff' : '#1f2937',
+            textAlign: 'left',
+            rotation: 0
+          };
+          getCurrentFrame().objects.push(newTextObj);
+          state.selectedObjectId = newTextObj.id;
+          state.editingTextObjectId = newTextObj.id;
+          state.activeTool = 'select';
+          updateToolUI();
+          renderObjects();
+        } else if (state.activeTool === 'shape') {
+          state.shapePreview = {
+            startX: pt.x,
+            startY: pt.y,
+            currentX: pt.x,
+            currentY: pt.y
+          };
+          state.isDrawing = true;
+        } else if (state.activeTool === 'select') {
+          // If clicked directly on canvas background, clear selection
+          if (e.target === drawingCanvas || e.target === boardContainer || e.target === boardBackgroundLayer) {
+            state.selectedObjectId = null;
+            state.editingTextObjectId = null;
+            renderObjects();
+          }
+        }
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (state.viewport.isPanning) {
+          const dx = e.clientX - state.viewport.lastPanClientX;
+          const dy = e.clientY - state.viewport.lastPanClientY;
+          state.viewport.panX += dx;
+          state.viewport.panY += dy;
+          state.viewport.lastPanClientX = e.clientX;
+          state.viewport.lastPanClientY = e.clientY;
+          boardContainer.style.transform = `translate(${state.viewport.panX}px, ${state.viewport.panY}px) scale(${state.viewport.scale})`;
+          return;
+        }
+
+        if (!state.isDrawing) return;
+        const pt = getBoardCoordinates(e);
+
+        if (state.activeTool === 'pen' || state.activeTool === 'eraser') {
+          if (state.currentStroke) {
+            state.currentStroke.points.push(pt);
+            redrawAll();
+            drawStroke(drawingCtx, state.currentStroke);
+          }
+        } else if (state.activeTool === 'laser') {
+          state.laserTrail.push({ x: pt.x, y: pt.y, time: Date.now() });
+        } else if (state.activeTool === 'shape' && state.shapePreview) {
+          state.shapePreview.currentX = pt.x;
+          state.shapePreview.currentY = pt.y;
+          redrawAll();
+          drawShapePreview(state.shapePreview);
+        }
+      });
+
+      window.addEventListener('pointerup', () => {
+        if (state.viewport.isPanning) {
+          state.viewport.isPanning = false;
+        }
+        if (!state.isDrawing) return;
+        state.isDrawing = false;
+
+        if ((state.activeTool === 'pen' || state.activeTool === 'eraser') && state.currentStroke) {
+          getCurrentFrame().strokes.push(state.currentStroke);
+          state.currentStroke = null;
+          pushHistory();
+          redrawAll();
+        } else if (state.activeTool === 'shape' && state.shapePreview) {
+          const sp = state.shapePreview;
+          const x = Math.min(sp.startX, sp.currentX);
+          const y = Math.min(sp.startY, sp.currentY);
+          const width = Math.max(30, Math.abs(sp.currentX - sp.startX));
+          const height = Math.max(30, Math.abs(sp.currentY - sp.startY));
+
+          const newShape = {
+            id: generateId(),
+            type: 'shape',
+            shapeType: state.shape.type,
+            stroke: state.shape.stroke,
+            fill: state.shape.fill,
+            x, y, width, height,
+            rotation: 0
+          };
+          getCurrentFrame().objects.push(newShape);
+          state.shapePreview = null;
+          state.selectedObjectId = newShape.id;
+          state.activeTool = 'select';
+          updateToolUI();
+          pushHistory();
+          renderObjects();
+        }
+      });
+
+      function drawShapePreview(sp) {
+        const x = Math.min(sp.startX, sp.currentX);
+        const y = Math.min(sp.startY, sp.currentY);
+        const w = Math.max(30, Math.abs(sp.currentX - sp.startX));
+        const h = Math.max(30, Math.abs(sp.currentY - sp.startY));
+
+        overlayCtx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        overlayCtx.save();
+        overlayCtx.strokeStyle = state.shape.stroke;
+        overlayCtx.lineWidth = 3;
+        overlayCtx.setLineDash([6, 6]);
+        if (state.shape.fill !== 'transparent') {
+          overlayCtx.fillStyle = state.shape.fill;
+          overlayCtx.fillRect(x, y, w, h);
+        }
+        overlayCtx.strokeRect(x, y, w, h);
+        overlayCtx.restore();
+      }
+
+      function animationLoop() {
+        // Render laser trail fading
+        overlayCtx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        if (state.laserTrail.length > 0) {
+          const now = Date.now();
+          state.laserTrail = state.laserTrail.filter(pt => now - pt.time < 800);
+
+          if (state.laserTrail.length > 1) {
+            overlayCtx.save();
+            for (let i = 1; i < state.laserTrail.length; i++) {
+              const p1 = state.laserTrail[i - 1];
+              const p2 = state.laserTrail[i];
+              const age = now - p2.time;
+              const alpha = Math.max(0, 1 - age / 800);
+
+              overlayCtx.beginPath();
+              overlayCtx.moveTo(p1.x, p1.y);
+              overlayCtx.lineTo(p2.x, p2.y);
+              overlayCtx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
+              overlayCtx.lineWidth = 4;
+              overlayCtx.lineCap = 'round';
+              overlayCtx.stroke();
+            }
+            // Laser cursor dot
+            const last = state.laserTrail[state.laserTrail.length - 1];
+            overlayCtx.beginPath();
+            overlayCtx.arc(last.x, last.y, 7, 0, Math.PI * 2);
+            overlayCtx.fillStyle = '#ef4444';
+            overlayCtx.fill();
+            overlayCtx.lineWidth = 2;
+            overlayCtx.strokeStyle = '#ffffff';
+            overlayCtx.stroke();
+            overlayCtx.restore();
+          }
+        }
+        requestAnimationFrame(animationLoop);
+      }
+
+      // Object Dragging & Resizing logic
+      function initObjectDrag(e, obj) {
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const origX = obj.x;
+        const origY = obj.y;
+
+        function onPointerMove(ev) {
+          const dx = (ev.clientX - startX) / state.viewport.scale;
+          const dy = (ev.clientY - startY) / state.viewport.scale;
+          obj.x = Math.max(-50, Math.min(origX + dx, BOARD_WIDTH - 40));
+          obj.y = Math.max(-50, Math.min(origY + dy, BOARD_HEIGHT - 40));
+          renderObjects();
+        }
+
+        function onPointerUp() {
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          pushHistory();
+        }
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+      }
+
+      // -------------------- UI EVENT LISTENERS --------------------
+      // Tool selector
+      document.querySelectorAll('#leftToolbar button[data-tool]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tool = btn.dataset.tool;
+          if (tool === 'pen') {
+            penPopover.classList.toggle('hidden');
+            shapePopover.classList.add('hidden');
+          } else if (tool === 'shape') {
+            shapePopover.classList.toggle('hidden');
+            penPopover.classList.add('hidden');
+          } else {
+            penPopover.classList.add('hidden');
+            shapePopover.classList.add('hidden');
+          }
+
+          if (tool === 'sticky') {
+            openStickyModal();
+            return;
+          }
+          if (tool === 'image') {
+            imageFileInput.click();
+            return;
+          }
+
+          state.activeTool = tool;
+          updateToolUI();
+        });
+      });
+
+      function updateToolUI() {
+        document.querySelectorAll('#leftToolbar button[data-tool]').forEach(b => {
+          b.classList.toggle('active', b.dataset.tool === state.activeTool);
+        });
+        if (state.activeTool !== 'select') {
+          state.selectedObjectId = null;
+          state.editingTextObjectId = null;
+          renderObjects();
+        }
+      }
+
+      // Pen options
+      document.querySelectorAll('.pen-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.pen-type-btn').forEach(b => {
+            b.classList.remove('active', 'border-blue-500', 'bg-blue-50', 'text-blue-600');
+            b.classList.add('border-gray-200', 'text-gray-700');
+          });
+          btn.classList.add('active', 'border-blue-500', 'bg-blue-50', 'text-blue-600');
+          btn.classList.remove('border-gray-200', 'text-gray-700');
+          state.pen.type = btn.dataset.penType;
+        });
+      });
+
+      document.querySelectorAll('.stroke-size-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.stroke-size-btn').forEach(b => b.classList.remove('active', 'bg-white', 'shadow-2xs'));
+          btn.classList.add('active', 'bg-white', 'shadow-2xs');
+          state.pen.size = Number(btn.dataset.strokeSize);
+        });
+      });
+
+      document.querySelectorAll('.pen-color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.pen-color-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500'));
+          btn.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+          state.pen.color = btn.dataset.penColor;
+          activePenColorDot.style.backgroundColor = state.pen.color;
+        });
+      });
+
+      document.getElementById('customPenColorInput').addEventListener('input', (e) => {
+        state.pen.color = e.target.value;
+        activePenColorDot.style.backgroundColor = state.pen.color;
+      });
+
+      // Shape options
+      document.querySelectorAll('.shape-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.shape-type-btn').forEach(b => {
+            b.classList.remove('active', 'border-blue-500', 'bg-blue-50', 'text-blue-600');
+            b.classList.add('border-gray-200', 'text-gray-700');
+          });
+          btn.classList.add('active', 'border-blue-500', 'bg-blue-50', 'text-blue-600');
+          btn.classList.remove('border-gray-200', 'text-gray-700');
+          state.shape.type = btn.dataset.shapeType;
+        });
+      });
+
+      document.querySelectorAll('.shape-stroke-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.shape-stroke-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-1', 'ring-blue-500'));
+          btn.classList.add('ring-2', 'ring-offset-1', 'ring-blue-500');
+          state.shape.stroke = btn.dataset.shapeStroke;
+        });
+      });
+
+      document.querySelectorAll('.shape-fill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.shape-fill-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-1', 'ring-blue-500'));
+          btn.classList.add('ring-2', 'ring-offset-1', 'ring-blue-500');
+          state.shape.fill = btn.dataset.shapeFill;
+        });
+      });
+
+      // Sticky Note Modal
+      function openStickyModal(obj = null) {
+        if (obj) {
+          state.sticky.editingId = obj.id;
+          state.sticky.color = obj.color;
+          state.sticky.handwriting = obj.handwriting || obj.fontFamily === 'handwriting';
+          stickyTextarea.value = obj.text;
+          stickyHandwritingToggle.checked = state.sticky.handwriting;
+        } else {
+          state.sticky.editingId = null;
+          stickyTextarea.value = '';
+          stickyHandwritingToggle.checked = state.sticky.handwriting;
+        }
+
+        updateStickyPreview();
+        stickyModal.classList.remove('hidden');
+        setTimeout(() => stickyTextarea.focus(), 50);
+      }
+
+      function updateStickyPreview() {
+        stickyPreviewCard.style.backgroundColor = state.sticky.color === 'transparent' ? '#ffffff' : state.sticky.color;
+        stickyTextarea.style.fontFamily = state.sticky.handwriting ? "'Kalam', cursive" : "'Inter', sans-serif";
+      }
+
+      document.querySelectorAll('.sticky-color-swatch').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sticky-color-swatch').forEach(b => b.classList.remove('border-2', 'border-gray-800', 'scale-110'));
+          btn.classList.add('border-2', 'border-gray-800', 'scale-110');
+          state.sticky.color = btn.dataset.stickyColor;
+          updateStickyPreview();
+        });
+      });
+
+      stickyHandwritingToggle.addEventListener('change', (e) => {
+        state.sticky.handwriting = e.target.checked;
+        updateStickyPreview();
+      });
+
+      saveStickyBtn.addEventListener('click', () => {
+        const text = stickyTextarea.value.trim();
+        if (!text) {
+          showToast('Please type something for the sticky note.');
+          return;
+        }
+        const frame = getCurrentFrame();
+        if (state.sticky.editingId) {
+          const obj = frame.objects.find(o => o.id === state.sticky.editingId);
+          if (obj) {
+            obj.text = text;
+            obj.color = state.sticky.color;
+            obj.handwriting = state.sticky.handwriting;
+            obj.fontFamily = state.sticky.handwriting ? 'handwriting' : 'sans';
+          }
+        } else {
+          const offset = (frame.objects.filter(o => o.type === 'sticky').length % 6) * 24;
+          const newSticky = {
+            id: generateId(),
+            type: 'sticky',
+            text,
+            color: state.sticky.color,
+            handwriting: state.sticky.handwriting,
+            fontFamily: state.sticky.handwriting ? 'handwriting' : 'sans',
+            fontWeight: 'normal',
+            fontStyle: 'normal',
+            x: 160 + offset,
+            y: 140 + offset,
+            width: 210,
+            height: 210,
+            fontSize: 22,
+            textColor: '#1f2937',
+            textAlign: 'center',
+            rotation: (Math.random() * 4 - 2).toFixed(1)
+          };
+          frame.objects.push(newSticky);
+        }
+        stickyModal.classList.add('hidden');
+        pushHistory();
+        renderObjects();
+        showToast('Sticky note saved!');
+      });
+
+      cancelStickyBtn.addEventListener('click', () => stickyModal.classList.add('hidden'));
+      closeStickyModalBtn.addEventListener('click', () => stickyModal.classList.add('hidden'));
+
+      // Image Upload
+      imageFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const img = new Image();
+          img.onload = function () {
+            let w = img.width;
+            let h = img.height;
+            const maxDim = 360;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const newImgObj = {
+              id: generateId(),
+              type: 'image',
+              src: event.target.result,
+              x: (BOARD_WIDTH - w) / 2,
+              y: (BOARD_HEIGHT - h) / 2,
+              width: w,
+              height: h,
+              rotation: 0
+            };
+            getCurrentFrame().objects.push(newImgObj);
+            state.selectedObjectId = newImgObj.id;
+            state.activeTool = 'select';
+            updateToolUI();
+            pushHistory();
+            renderObjects();
+            showToast('Image added!');
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        imageFileInput.value = '';
+      });
+
+      // Context bar formatting controls
+      objFontFamilySelect.addEventListener('change', (e) => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (obj) {
+          obj.fontFamily = e.target.value;
+          obj.handwriting = e.target.value === 'handwriting';
+          if (!state.editingTextObjectId) pushHistory();
+          renderObjects();
+        }
+      });
+
+      objBoldBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+      objBoldBtn.addEventListener('click', () => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (obj) {
+          obj.fontWeight = obj.fontWeight === 'bold' ? 'normal' : 'bold';
+          if (!state.editingTextObjectId) pushHistory();
+          renderObjects();
+        }
+      });
+
+      objItalicBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+      objItalicBtn.addEventListener('click', () => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (obj) {
+          obj.fontStyle = obj.fontStyle === 'italic' ? 'normal' : 'italic';
+          if (!state.editingTextObjectId) pushHistory();
+          renderObjects();
+        }
+      });
+
+      objFontSizeSelect.addEventListener('change', (e) => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (obj) {
+          obj.fontSize = Number(e.target.value);
+          if (!state.editingTextObjectId) pushHistory();
+          renderObjects();
+        }
+      });
+
+      document.querySelectorAll('.obj-align-btn').forEach(btn => {
+        btn.addEventListener('pointerdown', (e) => e.preventDefault());
+        btn.addEventListener('click', () => {
+          const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+          if (obj) {
+            obj.textAlign = btn.dataset.align;
+            if (!state.editingTextObjectId) pushHistory();
+            renderObjects();
+          }
+        });
+      });
+
+      document.querySelectorAll('.obj-text-color-swatch').forEach(swatch => {
+        swatch.addEventListener('click', () => {
+          const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+          if (obj) {
+            obj.textColor = swatch.dataset.textColor;
+            objTextColorInput.value = obj.textColor;
+            if (!state.editingTextObjectId) pushHistory();
+            renderObjects();
+          }
+        });
+      });
+
+      objTextColorInput.addEventListener('input', (e) => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (obj) {
+          obj.textColor = e.target.value;
+          if (!state.editingTextObjectId) pushHistory();
+          renderObjects();
+        }
+      });
+
+      editObjBtn.addEventListener('click', () => {
+        const obj = getCurrentFrame().objects.find(o => o.id === state.selectedObjectId);
+        if (!obj) return;
+        if (obj.type === 'sticky') openStickyModal(obj);
+        else if (obj.type === 'text') startEditingTextObject(obj);
+      });
+
+      duplicateObjBtn.addEventListener('click', () => {
+        if (!state.selectedObjectId) return;
+        const frame = getCurrentFrame();
+        const obj = frame.objects.find(o => o.id === state.selectedObjectId);
+        if (!obj) return;
+        const copy = JSON.parse(JSON.stringify(obj));
+        copy.id = generateId();
+        copy.x += 24;
+        copy.y += 24;
+        frame.objects.push(copy);
+        state.selectedObjectId = copy.id;
+        pushHistory();
+        renderObjects();
+        showToast('Duplicated');
+      });
+
+      bringFrontBtn.addEventListener('click', () => {
+        if (!state.selectedObjectId) return;
+        const frame = getCurrentFrame();
+        const idx = frame.objects.findIndex(o => o.id === state.selectedObjectId);
+        if (idx !== -1) {
+          const [obj] = frame.objects.splice(idx, 1);
+          frame.objects.push(obj);
+          pushHistory();
+          renderObjects();
+        }
+      });
+
+      sendBackBtn.addEventListener('click', () => {
+        if (!state.selectedObjectId) return;
+        const frame = getCurrentFrame();
+        const idx = frame.objects.findIndex(o => o.id === state.selectedObjectId);
+        if (idx > 0) {
+          const [obj] = frame.objects.splice(idx, 1);
+          frame.objects.unshift(obj);
+          pushHistory();
+          renderObjects();
+        }
+      });
+
+      deleteObjBtn.addEventListener('click', deleteSelectedObject);
+
+      function deleteSelectedObject() {
+        if (!state.selectedObjectId) return;
+        const frame = getCurrentFrame();
+        frame.objects = frame.objects.filter(o => o.id !== state.selectedObjectId);
+        state.selectedObjectId = null;
+        renderObjects();
+        pushHistory();
+      }
+
+      // Frame navigation
+      prevFrameBtn.addEventListener('click', () => {
+        if (state.currentFrameIndex > 0) {
+          state.currentFrameIndex--;
+          updateFrameUI();
+        }
+      });
+
+      nextFrameBtn.addEventListener('click', () => {
+        if (state.currentFrameIndex === state.frames.length - 1) {
+          state.frames.push(createEmptyFrame());
+        }
+        state.currentFrameIndex++;
+        updateFrameUI();
+      });
+
+      addFrameBtn.addEventListener('click', () => {
+        state.frames.splice(state.currentFrameIndex + 1, 0, createEmptyFrame());
+        state.currentFrameIndex++;
+        updateFrameUI();
+        showToast('New frame added');
+      });
+
+      function updateFrameUI() {
+        frameIndicator.textContent = `${state.currentFrameIndex + 1} / ${state.frames.length}`;
+        prevFrameBtn.disabled = state.currentFrameIndex === 0;
+        state.selectedObjectId = null;
+        state.editingTextObjectId = null;
+        redrawAll();
+        updateHistoryButtons();
+      }
+
+      // Frame Overview Drawer
+      frameOverviewBtn.addEventListener('click', () => {
+        renderFrameThumbnails();
+        frameOverviewBar.classList.remove('hidden');
+      });
+
+      closeOverviewBtn.addEventListener('click', () => {
+        frameOverviewBar.classList.add('hidden');
+      });
+
+      function renderFrameThumbnails() {
+        frameThumbnailsList.innerHTML = '';
+        state.frames.forEach((frame, idx) => {
+          const thumbCard = document.createElement('div');
+          thumbCard.className = `relative flex-shrink-0 w-44 h-24 rounded-2xl border-2 bg-white cursor-pointer overflow-hidden shadow-sm transition ${idx === state.currentFrameIndex ? 'border-blue-600 ring-2 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'}`;
+          
+          thumbCard.innerHTML = `
+            <div class="absolute inset-0 flex items-center justify-center text-xs font-semibold text-gray-400">Frame ${idx + 1}</div>
+            <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-gray-900/70 text-white text-[10px] font-medium">${idx + 1}</div>
+          `;
+
+          thumbCard.addEventListener('click', () => {
+            state.currentFrameIndex = idx;
+            frameOverviewBar.classList.add('hidden');
+            updateFrameUI();
+          });
+
+          frameThumbnailsList.appendChild(thumbCard);
+        });
+      }
+
+      // Zoom Menu
+      zoomMenuBtn.addEventListener('click', () => zoomPopover.classList.toggle('hidden'));
+      zoomPopover.querySelectorAll('button[data-zoom]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.zoom;
+          if (action === 'in') state.viewport.scale = Math.min(2.5, state.viewport.scale + 0.15);
+          else if (action === 'out') state.viewport.scale = Math.max(0.3, state.viewport.scale - 0.15);
+          else updateViewportTransform();
+          boardContainer.style.transform = `translate(${state.viewport.panX}px, ${state.viewport.panY}px) scale(${state.viewport.scale})`;
+          zoomLabel.textContent = `${Math.round(state.viewport.scale * 100)}%`;
+          zoomPopover.classList.add('hidden');
+        });
+      });
+
+      // Background Menu
+      bgMenuBtn.addEventListener('click', () => bgPopover.classList.toggle('hidden'));
+      bgPopover.querySelectorAll('button[data-bg]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const bg = btn.dataset.bg;
+          getCurrentFrame().background = bg;
+          bgPopover.classList.add('hidden');
+          redrawAll();
+          pushHistory();
+          showToast(`Background changed to ${bg}`);
+        });
+      });
+
+      // Clear Frame
+      clearFrameBtn.addEventListener('click', () => {
+        document.getElementById('clearConfirmModal').classList.remove('hidden');
+      });
+
+      document.getElementById('cancelClearBtn').addEventListener('click', () => {
+        document.getElementById('clearConfirmModal').classList.add('hidden');
+      });
+
+      document.getElementById('confirmClearBtn').addEventListener('click', () => {
+        const frame = getCurrentFrame();
+        frame.strokes = [];
+        frame.objects = [];
+        pushHistory();
+        redrawAll();
+        document.getElementById('clearConfirmModal').classList.add('hidden');
+        showToast('Frame cleared');
+      });
+
+      // Export PNG
+      exportPngBtn.addEventListener('click', () => {
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = BOARD_WIDTH;
+        exportCanvas.height = BOARD_HEIGHT;
+        const eCtx = exportCanvas.getContext('2d');
+
+        // Draw background
+        const frame = getCurrentFrame();
+        if (frame.background === 'blueprint') {
+          eCtx.fillStyle = '#1e3a8a';
+          eCtx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        } else if (frame.background === 'chalkboard') {
+          eCtx.fillStyle = '#1f2937';
+          eCtx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        } else {
+          eCtx.fillStyle = '#ffffff';
+          eCtx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        }
+
+        // Draw strokes
+        frame.strokes.forEach(s => drawStroke(eCtx, s));
+
+        // Draw objects
+        frame.objects.forEach(obj => {
+          eCtx.save();
+          eCtx.translate(obj.x + obj.width / 2, obj.y + obj.height / 2);
+          eCtx.rotate(((obj.rotation || 0) * Math.PI) / 180);
+          eCtx.translate(-obj.width / 2, -obj.height / 2);
+
+          if (obj.type === 'sticky') {
+            if (obj.color !== 'transparent') {
+              eCtx.shadowColor = 'rgba(0,0,0,0.18)';
+              eCtx.shadowBlur = 12;
+              eCtx.shadowOffsetY = 5;
+              eCtx.fillStyle = obj.color;
+              eCtx.fillRect(0, 0, obj.width, obj.height);
+              eCtx.shadowColor = 'transparent';
+            }
+            eCtx.fillStyle = obj.textColor || '#1f2937';
+            eCtx.font = getObjCanvasFont(obj, 22);
+            eCtx.textAlign = obj.textAlign || 'center';
+            eCtx.textBaseline = 'middle';
+            wrapCanvasText(eCtx, obj.text, obj.width / 2, obj.height / 2, obj.width - 28, (obj.fontSize || 22) * 1.25);
+          } else if (obj.type === 'text') {
+            eCtx.fillStyle = obj.textColor || '#1f2937';
+            eCtx.font = getObjCanvasFont(obj, 24);
+            eCtx.textAlign = obj.textAlign || 'left';
+            eCtx.textBaseline = 'top';
+            const anchorX = obj.textAlign === 'center' ? obj.width / 2 : obj.textAlign === 'right' ? obj.width - 8 : 8;
+            wrapCanvasText(eCtx, obj.text, anchorX, 8, obj.width - 16, (obj.fontSize || 24) * 1.3);
+          }
+          eCtx.restore();
+        });
+
+        const link = document.createElement('a');
+        link.download = `${document.getElementById('jamTitleInput').value || 'Jam'}-Frame-${state.currentFrameIndex + 1}.png`;
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+        showToast('Exported frame as PNG!');
+      });
+
+      function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+        if (!text) return;
+        const paragraphs = text.split('\n');
+        let lines = [];
+        paragraphs.forEach(paragraph => {
+          const words = paragraph.split(' ');
+          let currentLine = words[0] || '';
+          for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + ' ' + word).width;
+            if (width < maxWidth) {
+              currentLine += ' ' + word;
+            } else {
+              lines.push(currentLine);
+              currentLine = word;
+            }
+          }
+          lines.push(currentLine);
+        });
+
+        const totalHeight = lines.length * lineHeight;
+        let startY = y - totalHeight / 2 + lineHeight / 2;
+        if (ctx.textBaseline === 'top') startY = y;
+
+        lines.forEach((line, index) => {
+          ctx.fillText(line, x, startY + index * lineHeight);
+        });
+      }
+
+      // History Undo / Redo buttons
+      undoBtn.addEventListener('click', undo);
+      redoBtn.addEventListener('click', redo);
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        if (e.key === ' ') {
+          state.viewport.spacePressed = true;
+          boardContainer.style.cursor = 'grab';
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          undo();
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+          e.preventDefault();
+          redo();
+        }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedObjectId) {
+          e.preventDefault();
+          deleteSelectedObject();
+        }
+        if (e.key.toLowerCase() === 'p') { state.activeTool = 'pen'; updateToolUI(); }
+        if (e.key.toLowerCase() === 'e') { state.activeTool = 'eraser'; updateToolUI(); }
+        if (e.key.toLowerCase() === 'v') { state.activeTool = 'select'; updateToolUI(); }
+        if (e.key.toLowerCase() === 's') { openStickyModal(); }
+        if (e.key.toLowerCase() === 't') { state.activeTool = 'text'; updateToolUI(); }
+        if (e.key.toLowerCase() === 'l') { state.activeTool = 'laser'; updateToolUI(); }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.key === ' ') {
+          state.viewport.spacePressed = false;
+          state.viewport.isPanning = false;
+          boardContainer.style.cursor = 'default';
+        }
+      });
+
+      // Initialize app on load
+      window.onload = function () {
+        initJamboard();
+      };
+    })();
+  </script>
+</body>
+</html>
